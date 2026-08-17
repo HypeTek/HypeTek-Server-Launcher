@@ -1,0 +1,14 @@
+# User-specific launcher data
+servers.json
+settings.json
+Error.txt
+assets/
+
+# Temporary / editor files
+*.tmp
+*.bak
+*.log
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

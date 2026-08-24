@@ -2,6 +2,18 @@
 
 All notable changes to HypeTek Server Launcher are documented here.
 
+## [3.5] - 2026-08-24
+
+### Added
+- Compact per-server icon dropdown in the add/edit dialog.
+- New manual icon types: Server, PC, Laptop, Website and NAS.
+- Additional useful icon types: Router, Raspberry Pi, VM and Generic.
+- Automatic icon mode remains available.
+
+### Changed
+- Icon selection is visually smaller and placed beside the button-color controls.
+- Existing v3.4.x icon values remain compatible.
+
 ## [3.4.2] - 2026-08-24
 
 ### Fixed

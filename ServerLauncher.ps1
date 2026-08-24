@@ -1,4 +1,4 @@
-﻿# HypeTek Server Launcher V3.4.2
+﻿# HypeTek Server Launcher V3.5
 # Windows 10/11 - Windows PowerShell 5.1 - WPF
 
 Add-Type -AssemblyName PresentationFramework
@@ -77,7 +77,7 @@ $script:Translations = @{
         Hint='Drag & Drop: Reihenfolge ändern  •  Rechtsklick: Bearbeiten oder Löschen'; BackgroundNone='Kein Hintergrundbild ausgewählt';
         BackgroundMode='Bildanpassung'; ModeCover='Ausfüllen'; ModeFit='Einpassen'; ModeStretch='Strecken';
         BackgroundDim='Hintergrund abdunkeln'; Percent='%';
-        ColorChoose='Farbe wählen'; AddressExample='z. B. 192.168.1.10 oder https://server.local:8443'; Icon='Symbol'; IconAuto='Automatisch'; IconRaspberry='Raspberry Pi'; IconStorage='NAS / Speicher'; IconVM='VM / Virtualisierung'; IconSecurity='Router / Sicherheit'; IconWeb='Web / Dienst'; IconGeneric='Allgemein'
+        ColorChoose='Farbe wählen'; AddressExample='z. B. 192.168.1.10 oder https://server.local:8443'; Icon='Symbol'; IconAuto='Automatisch'; IconServer='Server'; IconPC='PC'; IconLaptop='Laptop'; IconWebsite='Website'; IconNAS='NAS'; IconRouter='Router'; IconRaspberry='Raspberry Pi'; IconVM='VM / Virtualisierung'; IconGeneric='Allgemein'
     }
     en = @{
         Title='SERVER LAUNCHER'; Subtitle='Open server addresses with one click'; Add='Add server';
@@ -92,7 +92,7 @@ $script:Translations = @{
         Hint='Drag & drop: reorder servers  •  Right-click: edit or delete'; BackgroundNone='No background image selected';
         BackgroundMode='Image scaling'; ModeCover='Fill'; ModeFit='Fit'; ModeStretch='Stretch';
         BackgroundDim='Darken background'; Percent='%';
-        ColorChoose='Choose color'; AddressExample='e.g. 192.168.1.10 or https://server.local:8443'; Icon='Icon'; IconAuto='Automatic'; IconRaspberry='Raspberry Pi'; IconStorage='NAS / Storage'; IconVM='VM / Virtualization'; IconSecurity='Router / Security'; IconWeb='Web / Service'; IconGeneric='Generic'
+        ColorChoose='Choose color'; AddressExample='e.g. 192.168.1.10 or https://server.local:8443'; Icon='Icon'; IconAuto='Automatic'; IconServer='Server'; IconPC='PC'; IconLaptop='Laptop'; IconWebsite='Website'; IconNAS='NAS'; IconRouter='Router'; IconRaspberry='Raspberry Pi'; IconVM='VM / Virtualization'; IconGeneric='Generic'
     }
     ru = @{
         Title='ЗАПУСК СЕРВЕРОВ'; Subtitle='Открывайте адреса серверов одним нажатием'; Add='Добавить сервер';
@@ -107,7 +107,7 @@ $script:Translations = @{
         Hint='Drag & Drop: изменить порядок  •  Правый клик: изменить или удалить'; BackgroundNone='Фоновое изображение не выбрано';
         BackgroundMode='Масштаб изображения'; ModeCover='Заполнить'; ModeFit='Вписать'; ModeStretch='Растянуть';
         BackgroundDim='Затемнение фона'; Percent='%';
-        ColorChoose='Выбрать цвет'; AddressExample='например 192.168.1.10 или https://server.local:8443'; Icon='Символ'; IconAuto='Автоматически'; IconRaspberry='Raspberry Pi'; IconStorage='NAS / хранилище'; IconVM='VM / виртуализация'; IconSecurity='Роутер / защита'; IconWeb='Веб / сервис'; IconGeneric='Общее'
+        ColorChoose='Выбрать цвет'; AddressExample='например 192.168.1.10 или https://server.local:8443'; Icon='Символ'; IconAuto='Автоматически'; IconServer='Сервер'; IconPC='ПК'; IconLaptop='Ноутбук'; IconWebsite='Веб-сайт'; IconNAS='NAS'; IconRouter='Роутер'; IconRaspberry='Raspberry Pi'; IconVM='VM / виртуализация'; IconGeneric='Общее'
     }
 }
 
@@ -189,22 +189,34 @@ function Open-ServerAddress {
 function Get-ServerSymbol {
     param([string]$Name,[string]$Address,[string]$Icon='Auto')
     switch([string]$Icon){
+        'Server'    { return [pscustomobject]@{ Glyph='🖧'; Font='Segoe UI Emoji' } }
+        'PC'        { return [pscustomobject]@{ Glyph='🖥'; Font='Segoe UI Emoji' } }
+        'Laptop'    { return [pscustomobject]@{ Glyph='💻'; Font='Segoe UI Emoji' } }
+        'Website'   { return [pscustomobject]@{ Glyph='🌐'; Font='Segoe UI Emoji' } }
+        'NAS'       { return [pscustomobject]@{ Glyph='🗄'; Font='Segoe UI Emoji' } }
+        'Router'    { return [pscustomobject]@{ Glyph='📡'; Font='Segoe UI Emoji' } }
         'Raspberry' { return [pscustomobject]@{ Glyph='🍓'; Font='Segoe UI Emoji' } }
-        'Storage'   { return [pscustomobject]@{ Glyph='🗄'; Font='Segoe UI Emoji' } }
-        'VM'        { return [pscustomobject]@{ Glyph='🖥'; Font='Segoe UI Emoji' } }
-        'Security'  { return [pscustomobject]@{ Glyph='🛡'; Font='Segoe UI Emoji' } }
-        'Web'       { return [pscustomobject]@{ Glyph='🌐'; Font='Segoe UI Emoji' } }
+        'VM'        { return [pscustomobject]@{ Glyph='⬡'; Font='Segoe UI Symbol' } }
         'Generic'   { return [pscustomobject]@{ Glyph='🔗'; Font='Segoe UI Emoji' } }
+        # Compatibility with icon values written by v3.4.x
+        'Storage'   { return [pscustomobject]@{ Glyph='🗄'; Font='Segoe UI Emoji' } }
+        'Security'  { return [pscustomobject]@{ Glyph='📡'; Font='Segoe UI Emoji' } }
+        'Web'       { return [pscustomobject]@{ Glyph='🌐'; Font='Segoe UI Emoji' } }
     }
+
+    # Automatic mode stays available for existing users, but manual selection
+    # is the intended option when an exact device type is known.
     $text=((([string]$Name)+' '+([string]$Address)).ToLowerInvariant())
     if($text -match 'rasp|raspberry|pi-hole|pihole'){ return [pscustomobject]@{ Glyph='🍓'; Font='Segoe UI Emoji' } }
     elseif($text -match 'nas|truenas|synology|qnap|storage'){ return [pscustomobject]@{ Glyph='🗄'; Font='Segoe UI Emoji' } }
-    elseif($text -match 'proxmox|hyper-v|esxi|vmware|vcenter|virtual|vm|commander'){ return [pscustomobject]@{ Glyph='🖥'; Font='Segoe UI Emoji' } }
-    elseif($text -match 'router|gateway|firewall|vpn|opnsense|pfsense'){ return [pscustomobject]@{ Glyph='🛡'; Font='Segoe UI Emoji' } }
-    elseif($text -match 'dns|web|nginx|apache|site|http'){ return [pscustomobject]@{ Glyph='🌐'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'laptop|notebook'){ return [pscustomobject]@{ Glyph='💻'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'desktop|workstation|\bpc\b'){ return [pscustomobject]@{ Glyph='🖥'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'proxmox|hyper-v|esxi|vmware|vcenter|virtual|\bvm\b|commander'){ return [pscustomobject]@{ Glyph='⬡'; Font='Segoe UI Symbol' } }
+    elseif($text -match 'router|gateway|firewall|vpn|opnsense|pfsense'){ return [pscustomobject]@{ Glyph='📡'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'www\.|website|web|nginx|apache|http'){ return [pscustomobject]@{ Glyph='🌐'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'server'){ return [pscustomobject]@{ Glyph='🖧'; Font='Segoe UI Emoji' } }
     else { return [pscustomobject]@{ Glyph='🔗'; Font='Segoe UI Emoji' } }
 }
-
 function New-ServerTileContent {
     param([string]$Name,[string]$Address,[string]$Icon='Auto')
     $symbol=Get-ServerSymbol -Name $Name -Address $Address -Icon $Icon
@@ -268,7 +280,7 @@ function New-FlatButton {
 function Show-ServerDialog {
     param([int]$Index=-1)
     $isEdit=($Index -ge 0 -and $Index -lt $script:Servers.Count)
-    $dlg=New-DialogWindow $(if($isEdit){Get-T 'EditServer'}else{Get-T 'NewServer'}) 520 500
+    $dlg=New-DialogWindow $(if($isEdit){Get-T 'EditServer'}else{Get-T 'NewServer'}) 520 450
 
     # Robustes Auto-Layout: keine festen Zeilenhoehen, damit Beschriftungen und Buttons
     # bei unterschiedlicher Windows-Skalierung / Sprache nicht abgeschnitten werden.
@@ -308,32 +320,58 @@ function Show-ServerDialog {
     $example.TextWrapping='Wrap'
     [void]$fields.Children.Add($example)
 
-    $lblIcon=New-Object System.Windows.Controls.TextBlock
-    $lblIcon.Text=Get-T 'Icon'
-    $lblIcon.Margin='0,0,0,5'
-    [void]$fields.Children.Add($lblIcon)
-
-    $cmbIcon=New-Object System.Windows.Controls.ComboBox
-    $cmbIcon.Height=34
-    $cmbIcon.Margin='0,0,0,14'
-    [void]$cmbIcon.Items.Add((Get-T 'IconAuto'))
-    [void]$cmbIcon.Items.Add((Get-T 'IconRaspberry'))
-    [void]$cmbIcon.Items.Add((Get-T 'IconStorage'))
-    [void]$cmbIcon.Items.Add((Get-T 'IconVM'))
-    [void]$cmbIcon.Items.Add((Get-T 'IconSecurity'))
-    [void]$cmbIcon.Items.Add((Get-T 'IconWeb'))
-    [void]$cmbIcon.Items.Add((Get-T 'IconGeneric'))
-    $cmbIcon.SelectedIndex=0
-    [void]$fields.Children.Add($cmbIcon)
+    # Color remains the primary customization. The icon selector is deliberately
+    # compact and sits beside it instead of taking a full section in the dialog.
+    $customLabels=New-Object System.Windows.Controls.Grid
+    $customLabels.Margin='0,0,0,5'
+    $cl1=New-Object System.Windows.Controls.ColumnDefinition; $cl1.Width='*'
+    $cl2=New-Object System.Windows.Controls.ColumnDefinition; $cl2.Width='190'
+    [void]$customLabels.ColumnDefinitions.Add($cl1); [void]$customLabels.ColumnDefinitions.Add($cl2)
 
     $lblColor=New-Object System.Windows.Controls.TextBlock
     $lblColor.Text=Get-T 'Color'
-    $lblColor.Margin='0,0,0,5'
-    [void]$fields.Children.Add($lblColor)
+    [System.Windows.Controls.Grid]::SetColumn($lblColor,0)
+    [void]$customLabels.Children.Add($lblColor)
 
-    $colorRow=New-Object System.Windows.Controls.StackPanel
-    $colorRow.Orientation='Horizontal'
+    $lblIcon=New-Object System.Windows.Controls.TextBlock
+    $lblIcon.Text=Get-T 'Icon'
+    $lblIcon.FontSize=12
+    $lblIcon.Foreground=Get-Brush '#B6BECA'
+    $lblIcon.Margin='12,0,0,0'
+    [System.Windows.Controls.Grid]::SetColumn($lblIcon,1)
+    [void]$customLabels.Children.Add($lblIcon)
+    [void]$fields.Children.Add($customLabels)
+
+    $colorRow=New-Object System.Windows.Controls.Grid
+    $cr1=New-Object System.Windows.Controls.ColumnDefinition; $cr1.Width='*'
+    $cr2=New-Object System.Windows.Controls.ColumnDefinition; $cr2.Width='190'
+    [void]$colorRow.ColumnDefinitions.Add($cr1); [void]$colorRow.ColumnDefinitions.Add($cr2)
     [void]$fields.Children.Add($colorRow)
+
+    $colorButtons=New-Object System.Windows.Controls.StackPanel
+    $colorButtons.Orientation='Horizontal'
+    [System.Windows.Controls.Grid]::SetColumn($colorButtons,0)
+    [void]$colorRow.Children.Add($colorButtons)
+
+    $cmbIcon=New-Object System.Windows.Controls.ComboBox
+    $cmbIcon.Height=32
+    $cmbIcon.Width=178
+    $cmbIcon.Margin='12,0,0,0'
+    $cmbIcon.HorizontalAlignment='Left'
+    $cmbIcon.FontSize=12.5
+    [void]$cmbIcon.Items.Add(('✦  ' + (Get-T 'IconAuto')))
+    [void]$cmbIcon.Items.Add(('🖧  ' + (Get-T 'IconServer')))
+    [void]$cmbIcon.Items.Add(('🖥  ' + (Get-T 'IconPC')))
+    [void]$cmbIcon.Items.Add(('💻  ' + (Get-T 'IconLaptop')))
+    [void]$cmbIcon.Items.Add(('🌐  ' + (Get-T 'IconWebsite')))
+    [void]$cmbIcon.Items.Add(('🗄  ' + (Get-T 'IconNAS')))
+    [void]$cmbIcon.Items.Add(('📡  ' + (Get-T 'IconRouter')))
+    [void]$cmbIcon.Items.Add(('🍓  ' + (Get-T 'IconRaspberry')))
+    [void]$cmbIcon.Items.Add(('⬡  ' + (Get-T 'IconVM')))
+    [void]$cmbIcon.Items.Add(('🔗  ' + (Get-T 'IconGeneric')))
+    $cmbIcon.SelectedIndex=0
+    [System.Windows.Controls.Grid]::SetColumn($cmbIcon,1)
+    [void]$colorRow.Children.Add($cmbIcon)
 
     $colorBtn=New-FlatButton (Get-T 'ColorChoose') 150 '#2F80C1'
     $colorBtn.Margin='0'
@@ -346,12 +384,19 @@ function Show-ServerDialog {
         if ($script:Servers[$Index].PSObject.Properties['Color']) { $colorBtn.Tag=[string]$script:Servers[$Index].Color }
         if ($script:Servers[$Index].PSObject.Properties['Icon']) {
             switch([string]$script:Servers[$Index].Icon){
-                'Raspberry' {$cmbIcon.SelectedIndex=1}
-                'Storage' {$cmbIcon.SelectedIndex=2}
-                'VM' {$cmbIcon.SelectedIndex=3}
-                'Security' {$cmbIcon.SelectedIndex=4}
-                'Web' {$cmbIcon.SelectedIndex=5}
-                'Generic' {$cmbIcon.SelectedIndex=6}
+                'Server' {$cmbIcon.SelectedIndex=1}
+                'PC' {$cmbIcon.SelectedIndex=2}
+                'Laptop' {$cmbIcon.SelectedIndex=3}
+                'Website' {$cmbIcon.SelectedIndex=4}
+                'NAS' {$cmbIcon.SelectedIndex=5}
+                'Router' {$cmbIcon.SelectedIndex=6}
+                'Raspberry' {$cmbIcon.SelectedIndex=7}
+                'VM' {$cmbIcon.SelectedIndex=8}
+                'Generic' {$cmbIcon.SelectedIndex=9}
+                # Compatibility with v3.4.x values
+                'Storage' {$cmbIcon.SelectedIndex=5}
+                'Security' {$cmbIcon.SelectedIndex=6}
+                'Web' {$cmbIcon.SelectedIndex=4}
                 default {$cmbIcon.SelectedIndex=0}
             }
         }
@@ -359,8 +404,8 @@ function Show-ServerDialog {
 
     $previewHex=if([string]::IsNullOrWhiteSpace([string]$colorBtn.Tag)){[string]$script:Settings.DefaultButtonColor}else{[string]$colorBtn.Tag}
     $colorBtn.Background=Get-Brush $previewHex
-    [void]$colorRow.Children.Add($colorBtn)
-    [void]$colorRow.Children.Add($defaultBtn)
+    [void]$colorButtons.Children.Add($colorBtn)
+    [void]$colorButtons.Children.Add($defaultBtn)
 
     $colorBtn.Add_Click({
         $cd=New-Object System.Windows.Forms.ColorDialog
@@ -402,12 +447,15 @@ function Show-ServerDialog {
         }
         $icon='Auto'
         switch([int]$cmbIcon.SelectedIndex){
-            1 {$icon='Raspberry'}
-            2 {$icon='Storage'}
-            3 {$icon='VM'}
-            4 {$icon='Security'}
-            5 {$icon='Web'}
-            6 {$icon='Generic'}
+            1 {$icon='Server'}
+            2 {$icon='PC'}
+            3 {$icon='Laptop'}
+            4 {$icon='Website'}
+            5 {$icon='NAS'}
+            6 {$icon='Router'}
+            7 {$icon='Raspberry'}
+            8 {$icon='VM'}
+            9 {$icon='Generic'}
             default {$icon='Auto'}
         }
         $obj=[pscustomobject]@{ Name=$txtName.Text.Trim(); Address=$txtAddr.Text.Trim(); Color=[string]$colorBtn.Tag; Icon=$icon }

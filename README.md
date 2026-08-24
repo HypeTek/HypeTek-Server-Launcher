@@ -11,7 +11,7 @@
 <p align="center">
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white">
   <img alt="PowerShell 5.1" src="https://img.shields.io/badge/PowerShell-5.1-5391FE?logo=powershell&logoColor=white">
-  <img alt="Version 3.4.2" src="https://img.shields.io/badge/version-3.4.2-2ea44f">
+  <img alt="Version 3.5" src="https://img.shields.io/badge/version-3.5-2ea44f">
   <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -26,6 +26,7 @@
 - **Drag & Drop reordering** — move server tiles into any order you want
 - Add, edit and delete server entries
 - Custom button labels
+- **Compact icon dropdown per server**: Auto, Server, PC, Laptop, Website, NAS, Router, Raspberry Pi, VM or Generic
 - Hostnames, IP addresses and custom ports
 - Multiple entries can use the same host with different ports
 - Per-server button colors plus a configurable default color
@@ -45,7 +46,7 @@ The ready-to-use build is published under **GitHub Releases**.
 
 1. Open **Releases** on the right side of the repository page.
 2. Open the newest release.
-3. Download `HypeTek_ServerLauncher_v3.4.2_Windows_MIT.zip`.
+3. Download `HypeTek_ServerLauncher_v3.5_Windows_MIT.zip`.
 4. Extract the ZIP.
 5. Start `Start_ServerLauncher.vbs`.
 
@@ -124,13 +125,15 @@ docs/                    README images
 
 ## Version
 
-Current release: **v3.4.2**
+Current release: **v3.5**
 
-### v3.4.2 highlights
+### v3.5 highlights
 
-- Fixes the manually selectable tile-icon crash in v3.4
-- Server icons remain manually selectable or automatic
-- Drag & Drop ordering remains included
+- Compact per-server icon dropdown
+- New selectable icons: Server, PC, Laptop, Website and NAS
+- Additional Router, Raspberry Pi and VM icons
+- Existing v3.4.x icon assignments remain compatible
+
 
 
 

@@ -2,6 +2,49 @@
 
 All notable changes to HypeTek Server Launcher are documented here.
 
+## [3.4.2] - 2026-08-24
+
+### Fixed
+- Added writable per-user data fallback under `%LOCALAPPDATA%\HypeTek\ServerLauncher` for protected installation folders.
+- Added one-time migration of existing portable configuration.
+- Background assets and error logging now use the same writable data location.
+
+## [3.4.1] - 2026-08-17
+
+### Fixed
+- Fixed a PowerShell variable-name collision in server tile icon rendering.
+- Manual/automatic server icons now render correctly without the launcher closing.
+
+## [3.4] - 2026-08-17
+
+### Added
+- Manually selectable server-tile icons in the add/edit dialog.
+- Automatic icon detection remains available as the default icon mode.
+
+### Documentation
+- Updated README and release package references for v3.4.
+
+## [3.3] - 2026-08-17
+
+### Added
+- Automatic device symbols on server tiles.
+- Symbol detection for common server roles such as Raspberry Pi, NAS/storage, virtual machines, network/security services and generic web targets.
+
+### Documentation
+- Updated README and release package references for v3.3.
+
+## [3.2] - 2026-08-17
+
+### Added
+- Drag & Drop reordering for server tiles.
+- The new tile order is persisted immediately in `servers.json`.
+- Server tiles provide native WPF drag feedback while being moved.
+- Multilingual Drag & Drop hint in German, English and Russian.
+
+### Documentation
+- Refreshed GitHub README with HypeTek branding, badges and a release download button.
+- Added dedicated v3.2 release notes.
+
 ## [3.1] - 2026-08-17
 
 ### Fixed

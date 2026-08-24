@@ -1,4 +1,4 @@
-﻿# HypeTek Server Launcher V3.1
+﻿# HypeTek Server Launcher V3.4.2
 # Windows 10/11 - Windows PowerShell 5.1 - WPF
 
 Add-Type -AssemblyName PresentationFramework
@@ -9,10 +9,44 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $script:BaseDir = $PSScriptRoot
-$script:ServersFile = Join-Path $script:BaseDir 'servers.json'
-$script:SettingsFile = Join-Path $script:BaseDir 'settings.json'
-$script:AssetsDir = Join-Path $script:BaseDir 'assets'
-$script:ErrorFile = Join-Path $script:BaseDir 'Error.txt'
+
+# Use the program folder while it is writable (portable mode). If the launcher
+# is placed in a protected location such as C:\Program Files, store user data
+# under LocalAppData instead so normal users never need administrator rights.
+$script:DataDir = $script:BaseDir
+try {
+    $probe = Join-Path $script:BaseDir ('.hypetek-write-test-' + $PID + '.tmp')
+    [System.IO.File]::WriteAllText($probe,'test',[System.Text.Encoding]::UTF8)
+    Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+} catch {
+    $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
+    if ([string]::IsNullOrWhiteSpace($localAppData)) { $localAppData = $env:LOCALAPPDATA }
+    $script:DataDir = Join-Path $localAppData 'HypeTek\ServerLauncher'
+    if (-not (Test-Path -LiteralPath $script:DataDir)) {
+        [void](New-Item -ItemType Directory -Path $script:DataDir -Force)
+    }
+
+    # One-time migration: if a portable configuration exists next to the
+    # program, copy it into the user-writable data folder without overwriting
+    # an existing per-user configuration.
+    foreach($name in @('servers.json','settings.json')) {
+        $source = Join-Path $script:BaseDir $name
+        $target = Join-Path $script:DataDir $name
+        if ((Test-Path -LiteralPath $source) -and -not (Test-Path -LiteralPath $target)) {
+            Copy-Item -LiteralPath $source -Destination $target -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $sourceAssets = Join-Path $script:BaseDir 'assets'
+    $targetAssets = Join-Path $script:DataDir 'assets'
+    if ((Test-Path -LiteralPath $sourceAssets) -and -not (Test-Path -LiteralPath $targetAssets)) {
+        Copy-Item -LiteralPath $sourceAssets -Destination $targetAssets -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+$script:ServersFile = Join-Path $script:DataDir 'servers.json'
+$script:SettingsFile = Join-Path $script:DataDir 'settings.json'
+$script:AssetsDir = Join-Path $script:DataDir 'assets'
+$script:ErrorFile = Join-Path $script:DataDir 'Error.txt'
 $script:Servers = @()
 $script:Settings = $null
 $script:Window = $null
@@ -26,6 +60,8 @@ $script:GearButton = $null
 $script:HintText = $null
 $script:EmptyText = $null
 $script:ServerButtonStyle = $null
+$script:DragStartPoint = New-Object System.Windows.Point 0,0
+$script:LastDragEnd = [datetime]::MinValue
 
 $script:Translations = @{
     de = @{
@@ -38,10 +74,10 @@ $script:Translations = @{
         InvalidName='Bitte eine Buttonbeschriftung eingeben.'; BrowseImage='Hintergrundbild auswählen';
         OpenError='Die Adresse konnte nicht geöffnet werden.'; AppSettings='Launcher-Einstellungen';
         NewServer='Neuer Server'; EditServer='Server bearbeiten'; Error='Fehler';
-        Hint='Rechtsklick auf einen Server zum Bearbeiten oder Löschen'; BackgroundNone='Kein Hintergrundbild ausgewählt';
+        Hint='Drag & Drop: Reihenfolge ändern  •  Rechtsklick: Bearbeiten oder Löschen'; BackgroundNone='Kein Hintergrundbild ausgewählt';
         BackgroundMode='Bildanpassung'; ModeCover='Ausfüllen'; ModeFit='Einpassen'; ModeStretch='Strecken';
         BackgroundDim='Hintergrund abdunkeln'; Percent='%';
-        ColorChoose='Farbe wählen'; AddressExample='z. B. 192.168.1.10 oder https://server.local:8443'
+        ColorChoose='Farbe wählen'; AddressExample='z. B. 192.168.1.10 oder https://server.local:8443'; Icon='Symbol'; IconAuto='Automatisch'; IconRaspberry='Raspberry Pi'; IconStorage='NAS / Speicher'; IconVM='VM / Virtualisierung'; IconSecurity='Router / Sicherheit'; IconWeb='Web / Dienst'; IconGeneric='Allgemein'
     }
     en = @{
         Title='SERVER LAUNCHER'; Subtitle='Open server addresses with one click'; Add='Add server';
@@ -53,10 +89,10 @@ $script:Translations = @{
         InvalidName='Please enter a button label.'; BrowseImage='Choose background image';
         OpenError='The address could not be opened.'; AppSettings='Launcher settings';
         NewServer='New server'; EditServer='Edit server'; Error='Error';
-        Hint='Right-click a server to edit or delete it'; BackgroundNone='No background image selected';
+        Hint='Drag & drop: reorder servers  •  Right-click: edit or delete'; BackgroundNone='No background image selected';
         BackgroundMode='Image scaling'; ModeCover='Fill'; ModeFit='Fit'; ModeStretch='Stretch';
         BackgroundDim='Darken background'; Percent='%';
-        ColorChoose='Choose color'; AddressExample='e.g. 192.168.1.10 or https://server.local:8443'
+        ColorChoose='Choose color'; AddressExample='e.g. 192.168.1.10 or https://server.local:8443'; Icon='Icon'; IconAuto='Automatic'; IconRaspberry='Raspberry Pi'; IconStorage='NAS / Storage'; IconVM='VM / Virtualization'; IconSecurity='Router / Security'; IconWeb='Web / Service'; IconGeneric='Generic'
     }
     ru = @{
         Title='ЗАПУСК СЕРВЕРОВ'; Subtitle='Открывайте адреса серверов одним нажатием'; Add='Добавить сервер';
@@ -68,10 +104,10 @@ $script:Translations = @{
         InvalidName='Введите название кнопки.'; BrowseImage='Выберите фоновое изображение';
         OpenError='Не удалось открыть адрес.'; AppSettings='Настройки лаунчера';
         NewServer='Новый сервер'; EditServer='Изменить сервер'; Error='Ошибка';
-        Hint='Правый клик по серверу: изменить или удалить'; BackgroundNone='Фоновое изображение не выбрано';
+        Hint='Drag & Drop: изменить порядок  •  Правый клик: изменить или удалить'; BackgroundNone='Фоновое изображение не выбрано';
         BackgroundMode='Масштаб изображения'; ModeCover='Заполнить'; ModeFit='Вписать'; ModeStretch='Растянуть';
         BackgroundDim='Затемнение фона'; Percent='%';
-        ColorChoose='Выбрать цвет'; AddressExample='например 192.168.1.10 или https://server.local:8443'
+        ColorChoose='Выбрать цвет'; AddressExample='например 192.168.1.10 или https://server.local:8443'; Icon='Символ'; IconAuto='Автоматически'; IconRaspberry='Raspberry Pi'; IconStorage='NAS / хранилище'; IconVM='VM / виртуализация'; IconSecurity='Роутер / защита'; IconWeb='Веб / сервис'; IconGeneric='Общее'
     }
 }
 
@@ -150,6 +186,58 @@ function Open-ServerAddress {
     }
 }
 
+function Get-ServerSymbol {
+    param([string]$Name,[string]$Address,[string]$Icon='Auto')
+    switch([string]$Icon){
+        'Raspberry' { return [pscustomobject]@{ Glyph='🍓'; Font='Segoe UI Emoji' } }
+        'Storage'   { return [pscustomobject]@{ Glyph='🗄'; Font='Segoe UI Emoji' } }
+        'VM'        { return [pscustomobject]@{ Glyph='🖥'; Font='Segoe UI Emoji' } }
+        'Security'  { return [pscustomobject]@{ Glyph='🛡'; Font='Segoe UI Emoji' } }
+        'Web'       { return [pscustomobject]@{ Glyph='🌐'; Font='Segoe UI Emoji' } }
+        'Generic'   { return [pscustomobject]@{ Glyph='🔗'; Font='Segoe UI Emoji' } }
+    }
+    $text=((([string]$Name)+' '+([string]$Address)).ToLowerInvariant())
+    if($text -match 'rasp|raspberry|pi-hole|pihole'){ return [pscustomobject]@{ Glyph='🍓'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'nas|truenas|synology|qnap|storage'){ return [pscustomobject]@{ Glyph='🗄'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'proxmox|hyper-v|esxi|vmware|vcenter|virtual|vm|commander'){ return [pscustomobject]@{ Glyph='🖥'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'router|gateway|firewall|vpn|opnsense|pfsense'){ return [pscustomobject]@{ Glyph='🛡'; Font='Segoe UI Emoji' } }
+    elseif($text -match 'dns|web|nginx|apache|site|http'){ return [pscustomobject]@{ Glyph='🌐'; Font='Segoe UI Emoji' } }
+    else { return [pscustomobject]@{ Glyph='🔗'; Font='Segoe UI Emoji' } }
+}
+
+function New-ServerTileContent {
+    param([string]$Name,[string]$Address,[string]$Icon='Auto')
+    $symbol=Get-ServerSymbol -Name $Name -Address $Address -Icon $Icon
+    $stack=New-Object System.Windows.Controls.StackPanel
+    $stack.Orientation='Vertical'
+    $stack.HorizontalAlignment='Center'
+    $stack.VerticalAlignment='Center'
+
+    # Important: PowerShell variable names are case-insensitive. $Icon is a typed
+    # function parameter, so the visual TextBlock must use a different variable name.
+    $iconText=New-Object System.Windows.Controls.TextBlock
+    $iconText.Text=[string]$symbol.Glyph
+    $iconText.FontFamily=[string]$symbol.Font
+    $iconText.FontSize=24
+    $iconText.HorizontalAlignment='Center'
+    $iconText.TextAlignment='Center'
+    $iconText.Margin='0,0,0,4'
+
+    $label=New-Object System.Windows.Controls.TextBlock
+    $label.Text=[string]$Name
+    $label.Foreground=[System.Windows.Media.Brushes]::White
+    $label.FontSize=15
+    $label.FontWeight='SemiBold'
+    $label.TextAlignment='Center'
+    $label.TextWrapping='Wrap'
+    $label.MaxWidth=185
+    $label.HorizontalAlignment='Center'
+
+    [void]$stack.Children.Add($iconText)
+    [void]$stack.Children.Add($label)
+    return $stack
+}
+
 function New-DialogWindow {
     param([string]$Title,[double]$Width=520,[double]$Height=360)
     $w=New-Object System.Windows.Window
@@ -180,7 +268,7 @@ function New-FlatButton {
 function Show-ServerDialog {
     param([int]$Index=-1)
     $isEdit=($Index -ge 0 -and $Index -lt $script:Servers.Count)
-    $dlg=New-DialogWindow $(if($isEdit){Get-T 'EditServer'}else{Get-T 'NewServer'}) 520 430
+    $dlg=New-DialogWindow $(if($isEdit){Get-T 'EditServer'}else{Get-T 'NewServer'}) 520 500
 
     # Robustes Auto-Layout: keine festen Zeilenhoehen, damit Beschriftungen und Buttons
     # bei unterschiedlicher Windows-Skalierung / Sprache nicht abgeschnitten werden.
@@ -220,6 +308,24 @@ function Show-ServerDialog {
     $example.TextWrapping='Wrap'
     [void]$fields.Children.Add($example)
 
+    $lblIcon=New-Object System.Windows.Controls.TextBlock
+    $lblIcon.Text=Get-T 'Icon'
+    $lblIcon.Margin='0,0,0,5'
+    [void]$fields.Children.Add($lblIcon)
+
+    $cmbIcon=New-Object System.Windows.Controls.ComboBox
+    $cmbIcon.Height=34
+    $cmbIcon.Margin='0,0,0,14'
+    [void]$cmbIcon.Items.Add((Get-T 'IconAuto'))
+    [void]$cmbIcon.Items.Add((Get-T 'IconRaspberry'))
+    [void]$cmbIcon.Items.Add((Get-T 'IconStorage'))
+    [void]$cmbIcon.Items.Add((Get-T 'IconVM'))
+    [void]$cmbIcon.Items.Add((Get-T 'IconSecurity'))
+    [void]$cmbIcon.Items.Add((Get-T 'IconWeb'))
+    [void]$cmbIcon.Items.Add((Get-T 'IconGeneric'))
+    $cmbIcon.SelectedIndex=0
+    [void]$fields.Children.Add($cmbIcon)
+
     $lblColor=New-Object System.Windows.Controls.TextBlock
     $lblColor.Text=Get-T 'Color'
     $lblColor.Margin='0,0,0,5'
@@ -238,6 +344,17 @@ function Show-ServerDialog {
         $txtName.Text=[string]$script:Servers[$Index].Name
         $txtAddr.Text=[string]$script:Servers[$Index].Address
         if ($script:Servers[$Index].PSObject.Properties['Color']) { $colorBtn.Tag=[string]$script:Servers[$Index].Color }
+        if ($script:Servers[$Index].PSObject.Properties['Icon']) {
+            switch([string]$script:Servers[$Index].Icon){
+                'Raspberry' {$cmbIcon.SelectedIndex=1}
+                'Storage' {$cmbIcon.SelectedIndex=2}
+                'VM' {$cmbIcon.SelectedIndex=3}
+                'Security' {$cmbIcon.SelectedIndex=4}
+                'Web' {$cmbIcon.SelectedIndex=5}
+                'Generic' {$cmbIcon.SelectedIndex=6}
+                default {$cmbIcon.SelectedIndex=0}
+            }
+        }
     }
 
     $previewHex=if([string]::IsNullOrWhiteSpace([string]$colorBtn.Tag)){[string]$script:Settings.DefaultButtonColor}else{[string]$colorBtn.Tag}
@@ -283,7 +400,17 @@ function Show-ServerDialog {
             [System.Windows.MessageBox]::Show((Get-T 'InvalidAddress'),(Get-T 'Error'),'OK','Warning')|Out-Null
             return
         }
-        $obj=[pscustomobject]@{ Name=$txtName.Text.Trim(); Address=$txtAddr.Text.Trim(); Color=[string]$colorBtn.Tag }
+        $icon='Auto'
+        switch([int]$cmbIcon.SelectedIndex){
+            1 {$icon='Raspberry'}
+            2 {$icon='Storage'}
+            3 {$icon='VM'}
+            4 {$icon='Security'}
+            5 {$icon='Web'}
+            6 {$icon='Generic'}
+            default {$icon='Auto'}
+        }
+        $obj=[pscustomobject]@{ Name=$txtName.Text.Trim(); Address=$txtAddr.Text.Trim(); Color=[string]$colorBtn.Tag; Icon=$icon }
         if ($isEdit) { $script:Servers[$Index]=$obj } else { $script:Servers += $obj }
         Save-Servers
         $dlg.DialogResult=$true
@@ -334,7 +461,7 @@ function Show-SettingsDialog {
             if(-not (Test-ImageFile $ofd.FileName)){[System.Windows.MessageBox]::Show((Get-T 'OpenError'),(Get-T 'Error'),'OK','Error')|Out-Null;return}
             try {
                 if(-not(Test-Path $script:AssetsDir)){[void](New-Item -ItemType Directory -Path $script:AssetsDir -Force)}
-                $ext=[System.IO.Path]::GetExtension($ofd.FileName).ToLowerInvariant(); $rel=Join-Path 'assets' ('background'+$ext); $abs=Join-Path $script:BaseDir $rel
+                $ext=[System.IO.Path]::GetExtension($ofd.FileName).ToLowerInvariant(); $rel=Join-Path 'assets' ('background'+$ext); $abs=Join-Path $script:DataDir $rel
                 Get-ChildItem -LiteralPath $script:AssetsDir -Filter 'background.*' -File -ErrorAction SilentlyContinue | Where-Object{$_.FullName -ne $abs} | Remove-Item -Force -ErrorAction SilentlyContinue
                 if([System.IO.Path]::GetFullPath($ofd.FileName) -ne [System.IO.Path]::GetFullPath($abs)){Copy-Item -LiteralPath $ofd.FileName -Destination $abs -Force}
                 $bgText.Tag=$rel; $bgText.Text=$rel
@@ -368,7 +495,7 @@ function Apply-Background {
     $script:BackgroundImageControl.Source=$null
     $bg=[string]$script:Settings.BackgroundImage
     if(-not [string]::IsNullOrWhiteSpace($bg)){
-        $path=Join-Path $script:BaseDir $bg
+        $path=Join-Path $script:DataDir $bg
         if(Test-Path -LiteralPath $path){
             try{
                 $bi=New-Object System.Windows.Media.Imaging.BitmapImage;$bi.BeginInit();$bi.CacheOption='OnLoad';$bi.UriSource=New-Object System.Uri -ArgumentList $path;$bi.EndInit();$bi.Freeze();$script:BackgroundImageControl.Source=$bi
@@ -394,6 +521,44 @@ function Update-WindowHeight {
     if($script:Window.WindowState -eq 'Normal'){$script:Window.Height=$target}
 }
 
+function Move-ServerItem {
+    param([int]$FromIndex,[int]$ToIndex)
+    if($FromIndex -lt 0 -or $FromIndex -ge $script:Servers.Count){return}
+    if($ToIndex -lt 0){$ToIndex=0}
+    if($ToIndex -ge $script:Servers.Count){$ToIndex=$script:Servers.Count-1}
+    if($FromIndex -eq $ToIndex){return}
+
+    # Die JSON-Reihenfolge ist zugleich die sichtbare Reihenfolge. Dadurch bleibt
+    # ein Drag-&-Drop-Umsortieren ohne zusaetzliches Order-Feld dauerhaft erhalten.
+    $list=New-Object System.Collections.ArrayList
+    foreach($server in $script:Servers){[void]$list.Add($server)}
+    $item=$list[$FromIndex]
+    $list.RemoveAt($FromIndex)
+    $list.Insert($ToIndex,$item)
+    $script:Servers=@($list.ToArray())
+    Save-Servers
+    Refresh-ServerButtons
+}
+
+function Start-ServerDrag {
+    param($Sender,$EventArgs)
+    if($EventArgs.LeftButton -ne [System.Windows.Input.MouseButtonState]::Pressed){return}
+    $pos=$EventArgs.GetPosition($script:Window)
+    $dx=[Math]::Abs($pos.X-$script:DragStartPoint.X)
+    $dy=[Math]::Abs($pos.Y-$script:DragStartPoint.Y)
+    if($dx -lt [System.Windows.SystemParameters]::MinimumHorizontalDragDistance -and $dy -lt [System.Windows.SystemParameters]::MinimumVerticalDragDistance){return}
+
+    try{
+        $data=New-Object System.Windows.DataObject
+        $data.SetData('HypeTekServerIndex',[int]$Sender.Tag)
+        $Sender.Opacity=0.55
+        [void][System.Windows.DragDrop]::DoDragDrop($Sender,$data,[System.Windows.DragDropEffects]::Move)
+    } finally {
+        $Sender.Opacity=1.0
+        $script:LastDragEnd=Get-Date
+    }
+}
+
 function Refresh-ServerButtons {
     if(-not $script:ServerPanel){return}
     $script:ServerPanel.Children.Clear();$script:EmptyText=$null;Update-WindowHeight
@@ -401,9 +566,29 @@ function Refresh-ServerButtons {
         $empty=New-Object System.Windows.Controls.TextBlock;$script:EmptyText=$empty;$empty.Text=Get-T 'NoServers';$empty.Foreground=Get-Brush '#D8DCE5';$empty.FontSize=15;$empty.Margin='7,18,7,7';[void]$script:ServerPanel.Children.Add($empty);return
     }
     for($i=0;$i -lt $script:Servers.Count;$i++){
-        $s=$script:Servers[$i];$btn=New-Object System.Windows.Controls.Button;$btn.Content=[string]$s.Name;$btn.Tag=$i;$btn.Width=232;$btn.Height=74;$btn.Margin='7';$btn.Style=$script:ServerButtonStyle
+        $s=$script:Servers[$i];$iconKey='Auto';if($s.PSObject.Properties['Icon']){$iconKey=[string]$s.Icon};$btn=New-Object System.Windows.Controls.Button;$btn.Content=New-ServerTileContent -Name ([string]$s.Name) -Address ([string]$s.Address) -Icon $iconKey;$btn.Tag=$i;$btn.Width=232;$btn.Height=88;$btn.Margin='7';$btn.Style=$script:ServerButtonStyle;$btn.AllowDrop=$true
         $hex='';if($s.PSObject.Properties['Color']){$hex=[string]$s.Color};if([string]::IsNullOrWhiteSpace($hex)){$hex=[string]$script:Settings.DefaultButtonColor};$btn.Background=Get-Brush $hex
-        $btn.Add_Click({param($sender,$e) Open-ServerAddress ([string]$script:Servers[[int]$sender.Tag].Address)})
+
+        $btn.Add_PreviewMouseLeftButtonDown({param($sender,$e)$script:DragStartPoint=$e.GetPosition($script:Window)})
+        $btn.Add_PreviewMouseMove({param($sender,$e) Start-ServerDrag $sender $e})
+        $btn.Add_DragOver({param($sender,$e)if($e.Data.GetDataPresent('HypeTekServerIndex')){$e.Effects=[System.Windows.DragDropEffects]::Move;$e.Handled=$true}})
+        $btn.Add_Drop({
+            param($sender,$e)
+            if($e.Data.GetDataPresent('HypeTekServerIndex')){
+                $from=[int]$e.Data.GetData('HypeTekServerIndex')
+                $to=[int]$sender.Tag
+                $e.Effects=[System.Windows.DragDropEffects]::Move;$e.Handled=$true
+                Move-ServerItem -FromIndex $from -ToIndex $to
+            }
+        })
+        $btn.Add_Click({
+            param($sender,$e)
+            # DoDragDrop kann je nach Windows-/DPI-Konfiguration noch einen Click
+            # nachliefern. Direkt nach einem Drag darf deshalb keine URL starten.
+            if(((Get-Date)-$script:LastDragEnd).TotalMilliseconds -lt 450){return}
+            Open-ServerAddress ([string]$script:Servers[[int]$sender.Tag].Address)
+        })
+
         $menu=New-Object System.Windows.Controls.ContextMenu
         $edit=New-Object System.Windows.Controls.MenuItem;$edit.Header=Get-T 'Edit';$edit.Tag=$i;$edit.Add_Click({param($sender,$e) Show-ServerDialog -Index ([int]$sender.Tag)})
         $delete=New-Object System.Windows.Controls.MenuItem;$delete.Header=Get-T 'Delete';$delete.Tag=$i;$delete.Add_Click({param($sender,$e)$idx=[int]$sender.Tag;$r=[System.Windows.MessageBox]::Show((Get-T 'DeleteConfirm'),(Get-T 'Delete'),'YesNo','Question');if($r -eq 'Yes'){$new=@();for($j=0;$j -lt $script:Servers.Count;$j++){if($j -ne $idx){$new+=$script:Servers[$j]}};$script:Servers=$new;Save-Servers;Refresh-ServerButtons}})
@@ -467,10 +652,13 @@ function Run-Launcher {
     $reader=New-Object System.Xml.XmlNodeReader $xaml
     $window=[System.Windows.Markup.XamlReader]::Load($reader);$script:Window=$window
     $script:BackgroundImageControl=$window.FindName('BgImage');$script:DimOverlay=$window.FindName('DimOverlay');$script:TitleText=$window.FindName('TitleText');$script:SubtitleText=$window.FindName('SubtitleText');$script:AddButton=$window.FindName('AddButton');$script:GearButton=$window.FindName('GearButton');$script:HintText=$window.FindName('HintText');$script:ServerPanel=$window.FindName('ServerPanel');$script:ServerButtonStyle=$window.Resources['ServerButtonStyle']
+    $script:ServerPanel.AllowDrop=$true
+    $script:ServerPanel.Add_DragOver({param($sender,$e)if($e.Data.GetDataPresent('HypeTekServerIndex')){$e.Effects=[System.Windows.DragDropEffects]::Move}})
+    $script:ServerPanel.Add_Drop({param($sender,$e)if(-not $e.Handled -and $e.Data.GetDataPresent('HypeTekServerIndex')){$from=[int]$e.Data.GetData('HypeTekServerIndex');Move-ServerItem -FromIndex $from -ToIndex ($script:Servers.Count-1);$e.Handled=$true}})
     $script:AddButton.Add_Click({Show-ServerDialog});$script:GearButton.Add_Click({Show-SettingsDialog})
     Apply-Language;Apply-Background;Refresh-ServerButtons
     [void]$window.ShowDialog()
 }
 
 try { Run-Launcher; exit 0 }
-catch { Write-LauncherError $_; try{[System.Windows.MessageBox]::Show("$($_.Exception.Message)`r`n`r`nDetails: Error.txt",'HypeTek Server Launcher','OK','Error')|Out-Null}catch{}; exit 1 }
+catch { Write-LauncherError $_; try{[System.Windows.MessageBox]::Show("$($_.Exception.Message)`r`n`r`nDetails: $script:ErrorFile",'HypeTek Server Launcher','OK','Error')|Out-Null}catch{}; exit 1 }
